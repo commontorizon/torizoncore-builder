@@ -311,6 +311,7 @@ def handle_output_section(props, storage_dir, changes_dirs=None, default_base_ra
         handle_raw_image_output(raw_props, storage_dir, union_params, default_base_raw_image)
 
 
+# TODO: matheus.castello
 def handle_raw_image_output(props, storage_dir, union_params, default_base_raw_image):
     """Handle the output/raw-image section of the configuration file
 
@@ -336,6 +337,14 @@ def handle_raw_image_output(props, storage_dir, union_params, default_base_raw_i
 
     base_raw_img = props.get("base-image", default_base_raw_image)
     base_rootfs_label = props.get("base-rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL)
+
+    # Handle the bundle
+    handle_raw_image_bundle_output(
+        "raw-storage",
+        storage_dir,
+        props.get("bundle", {}),
+        props
+    )
 
     deploy_raw_image_params = {
         "ostree_ref": union_params["union_branch"],
@@ -382,6 +391,73 @@ def handle_easy_installer_output(props, storage_dir, union_params):
 
     if "provisioning" in props:
         handle_provisioning(output_dir, props.get("provisioning"))
+
+
+def handle_raw_image_bundle_output(image_dir, storage_dir, bundle_props, raw_props):
+    """Handle the bundle and combine steps of the output generation."""
+
+    # debug the properties from raw_props and bundle_props
+    for key, value in raw_props.items():
+        log.debug(f"raw_props[{key}]: {value}")
+
+    for key, value in bundle_props.items():
+        log.debug(f"bundle_props[{key}]: {value}")
+
+    if "compose-file" in raw_props:
+
+        if "platform" in bundle_props:
+            platform = bundle_props["platform"]
+        else:
+            # Detect platform based on OSTree data.
+            platform = common.get_docker_platform(storage_dir)
+
+        bundle_dir = datetime.now().strftime("bundle_%Y%m%d%H%M%S_%f.tmp")
+        log.info(f"Bundling images to directory {bundle_dir}")
+        try:
+            # Download bundle to temporary directory - currently that directory
+            # must be relative to the work directory.
+            logins = []
+            if bundle_props.get("registry") and bundle_props.get("username"):
+                logins = [(bundle_props.get("registry"),
+                           bundle_props.get("username"),
+                           bundle_props.get("password", ""))]
+            elif bundle_props.get("username"):
+                logins = [(bundle_props.get("username"),
+                           bundle_props.get("password", ""))]
+
+            RegistryOperations.set_logins(logins)
+
+            # CA Certificate of registry
+            if bundle_props.get("registry") and bundle_props.get("ca-certificate"):
+                cacerts = [[bundle_props.get("registry"),
+                            bundle_props.get("ca-certificate")]]
+                RegistryOperations.set_cacerts(cacerts)
+
+            download_params = {
+                "output_dir": bundle_dir,
+                "compose_file": bundle_props["compose-file"],
+                "host_workdir": common.get_host_workdir()[0],
+                "use_host_docker": False,
+                "output_filename": common.DOCKER_BUNDLE_FILENAME,
+                "keep_double_dollar_sign": bundle_props.get("keep-double-dollar-sign", False),
+                "platform": platform
+            }
+            download_containers_by_compose_file(**download_params)
+
+            # Do a combine "in place" to avoid creating another directory.
+            combine_params = {
+                "image_dir": image_dir,
+                "bundle_dir": bundle_dir,
+                "output_directory": None,
+                "raw_props": translate_tezi_props(raw_props),
+                "force": True
+            }
+            comb_be.combine_tezi_image(**combine_params)
+
+        finally:
+            log.debug(f"Removing temporary bundle directory {bundle_dir}")
+            if os.path.exists(bundle_dir):
+                shutil.rmtree(bundle_dir)
 
 
 def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):

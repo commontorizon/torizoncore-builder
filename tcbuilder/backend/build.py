@@ -410,7 +410,7 @@ def transform_leaves(dct, handler, max_depth=10):
                     _traverse(value, depth+1)
                 else:
                     dct_or_lst[key] = handler(value)
-                    # log.debug(f"Property {key}: '{value}' -> '{dct_or_lst[key]}'")
+                    log.debug(f"Property {key}: '{value}' -> '{dct_or_lst[key]}'")
 
         elif isinstance(dct_or_lst, (list, tuple)):
             for index, value in enumerate(dct_or_lst):
@@ -418,8 +418,9 @@ def transform_leaves(dct, handler, max_depth=10):
                     _traverse(value, depth+1)
                 else:
                     dct_or_lst[index] = handler(value)
-                    # log.debug(f"Property [{index}]: '{value}' -> '{dct_or_lst[index]}'")
+                    log.debug(f"Property [{index}]: '{value}' -> '{dct_or_lst[index]}'")
         else:
+            log.debug(f"Leaf: '{dct_or_lst}'")
             assert False, "_traverse() error"
 
     _traverse(dct)

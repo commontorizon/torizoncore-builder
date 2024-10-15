@@ -101,8 +101,15 @@ def deploy_raw_image(ostree_ref, base_raw_img, output_raw_img, storage_dir,
     if not os.path.exists(dst_sysroot_dir_):
         raise PathNotExistError(f"Deploy sysroot directory {dst_sysroot_dir_} does not exist.")
 
-    dbe.deploy_raw_image(base_raw_img, src_sysroot_dir, src_ostree_archive_dir,
-                         output_raw_img_, dst_sysroot_dir_, rootfs_label, ostree_ref)
+    dbe.deploy_raw_image(
+        base_raw_img,
+        src_sysroot_dir,
+        src_ostree_archive_dir,
+        output_raw_img_,
+        dst_sysroot_dir_,
+        rootfs_label,
+        ostree_ref
+    )
 
 
 def do_deploy_tezi_image(args):
