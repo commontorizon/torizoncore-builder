@@ -354,6 +354,61 @@ def write_rootfs_to_raw_image(base_raw_img, output_raw_img, base_rootfs_partitio
                 args=(f"{dst_sysroot_dir}/{content}", "/"),
                 loading_msg=f"  Copying /{content}...")
 
+        # if we had some compose-file, we need to tar in the bundle
+        bundle_dir = "bundle.tmp"
+
+        if os.path.exists(bundle_dir):
+            bundle_dir = "bundle.tmp"
+            bundle_tar_file_name = "docker-storage.tar"
+            sota_docker_compose_file_name = "docker-compose.yml"
+            sota_target_name_file_name = "target_name"
+            bundle_target_dir = "/ostree/deploy/torizon/var/lib/docker/"
+            sota_docker_compose_target_dir = "/ostree/deploy/torizon/var/sota/storage/docker-compose/"
+            sota_target_name_target_dir = "/ostree/deploy/torizon/var/sota/storage/docker-compose/"
+            sota_docker_compose_file_path = os.path.join(
+                bundle_dir,
+                sota_docker_compose_file_name
+            )
+            bundle_tar_file_path = os.path.join(
+                bundle_dir,
+                bundle_tar_file_name
+            )
+            sota_target_name_file_path = os.path.join(
+                bundle_dir,
+                sota_target_name_file_name
+            )
+
+            if os.path.exists(bundle_tar_file_path):
+                log.info("Copying bundle contents to output image. This may take a few minutes...")
+
+                # create target_name
+                with open(sota_target_name_file_path, 'w') as target_name_fd:
+                    target_name_fd.write("docker-compose.yml")
+
+                if not gfs.is_dir(bundle_target_dir):
+                    gfs.mkdir_p(bundle_target_dir)
+
+                run_with_loading_animation(
+                    func=gfs.tar_in,
+                    args=(bundle_tar_file_path, bundle_target_dir),
+                    loading_msg="  Copying bundle...")
+
+                if not gfs.is_dir(sota_docker_compose_target_dir):
+                    gfs.mkdir_p(sota_docker_compose_target_dir)
+
+                run_with_loading_animation(
+                    func=gfs.copy_in,
+                    args=(sota_docker_compose_file_path, sota_docker_compose_target_dir),
+                    loading_msg="  Copying docker-compose.yml...")
+
+                if not gfs.is_dir(sota_target_name_target_dir):
+                    gfs.mkdir_p(sota_target_name_target_dir)
+
+                run_with_loading_animation(
+                    func=gfs.copy_in,
+                    args=(sota_target_name_file_path, sota_target_name_target_dir),
+                    loading_msg="  Copying target_name...")
+
         gfs.shutdown()
         gfs.close()
     except RuntimeError as gfserr:

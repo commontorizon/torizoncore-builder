@@ -396,14 +396,7 @@ def handle_easy_installer_output(props, storage_dir, union_params):
 def handle_raw_image_bundle_output(image_dir, storage_dir, bundle_props, raw_props):
     """Handle the bundle and combine steps of the output generation."""
 
-    # debug the properties from raw_props and bundle_props
-    for key, value in raw_props.items():
-        log.debug(f"raw_props[{key}]: {value}")
-
-    for key, value in bundle_props.items():
-        log.debug(f"bundle_props[{key}]: {value}")
-
-    if "compose-file" in raw_props:
+    if "compose-file" in bundle_props:
 
         if "platform" in bundle_props:
             platform = bundle_props["platform"]
@@ -411,7 +404,11 @@ def handle_raw_image_bundle_output(image_dir, storage_dir, bundle_props, raw_pro
             # Detect platform based on OSTree data.
             platform = common.get_docker_platform(storage_dir)
 
-        bundle_dir = datetime.now().strftime("bundle_%Y%m%d%H%M%S_%f.tmp")
+        # for raw image the bundle.tmp is automatically cleaned
+        bundle_dir = "bundle.tmp"
+        if os.path.exists(bundle_dir):
+            shutil.rmtree(bundle_dir)
+
         log.info(f"Bundling images to directory {bundle_dir}")
         try:
             # Download bundle to temporary directory - currently that directory
@@ -433,6 +430,7 @@ def handle_raw_image_bundle_output(image_dir, storage_dir, bundle_props, raw_pro
                             bundle_props.get("ca-certificate")]]
                 RegistryOperations.set_cacerts(cacerts)
 
+            # we download the bundle and leave it there for the next steps
             download_params = {
                 "output_dir": bundle_dir,
                 "compose_file": bundle_props["compose-file"],
@@ -440,24 +438,13 @@ def handle_raw_image_bundle_output(image_dir, storage_dir, bundle_props, raw_pro
                 "use_host_docker": False,
                 "output_filename": common.DOCKER_BUNDLE_FILENAME,
                 "keep_double_dollar_sign": bundle_props.get("keep-double-dollar-sign", False),
-                "platform": platform
+                "platform": platform,
+                "compress": False
             }
             download_containers_by_compose_file(**download_params)
 
-            # Do a combine "in place" to avoid creating another directory.
-            combine_params = {
-                "image_dir": image_dir,
-                "bundle_dir": bundle_dir,
-                "output_directory": None,
-                "raw_props": translate_tezi_props(raw_props),
-                "force": True
-            }
-            comb_be.combine_tezi_image(**combine_params)
-
         finally:
-            log.debug(f"Removing temporary bundle directory {bundle_dir}")
-            if os.path.exists(bundle_dir):
-                shutil.rmtree(bundle_dir)
+            log.debug(f"Completed, bundled to {bundle_dir}")
 
 
 def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
