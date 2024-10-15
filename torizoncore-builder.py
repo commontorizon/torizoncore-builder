@@ -30,6 +30,14 @@ from tcbuilder.cli import (bundle, build, combine, deploy, dt, dto, images, isol
 from tcbuilder.errors import TorizonCoreBuilderError, InvalidArgumentError
 # pylint: enable=wrong-import-position
 
+if os.getenv("TCB_DEBUGPY"):
+    import debugpy
+
+    debugpy.listen(("0.0.0.0", 5678))
+    logging.debug("Waiting for debugger to attach ...")
+    debugpy.wait_for_client()
+    logging.debug("Debugger attached")
+
 # IMPORTANT: This line may be edited by the build system.
 VERSION_SUFFIX = ''
 
