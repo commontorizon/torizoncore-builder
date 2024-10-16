@@ -337,6 +337,14 @@ def handle_raw_image_output(props, storage_dir, union_params, default_base_raw_i
     base_raw_img = props.get("base-image", default_base_raw_image)
     base_rootfs_label = props.get("base-rootfs-label", common.DEFAULT_RAW_ROOTFS_LABEL)
 
+    # Handle the bundle
+    handle_raw_image_bundle_output(
+        "raw-storage",
+        storage_dir,
+        props.get("bundle", {}),
+        props
+    )
+
     deploy_raw_image_params = {
         "ostree_ref": union_params["union_branch"],
         "base_raw_img": base_raw_img,
@@ -456,6 +464,60 @@ def handle_bundle_output(image_dir, storage_dir, bundle_props, tezi_props):
             log.debug(f"Removing temporary bundle directory {bundle_dir}")
             if os.path.exists(bundle_dir):
                 shutil.rmtree(bundle_dir)
+
+
+def handle_raw_image_bundle_output(image_dir, storage_dir, bundle_props, raw_props):
+    """Handle the bundle and combine steps of the output generation."""
+
+    if "compose-file" in bundle_props:
+
+        if "platform" in bundle_props:
+            platform = bundle_props["platform"]
+        else:
+            # Detect platform based on OSTree data.
+            platform = common.get_docker_platform(storage_dir)
+
+        # for raw image the bundle.tmp is automatically cleaned
+        bundle_dir = "bundle.tmp"
+        if os.path.exists(bundle_dir):
+            shutil.rmtree(bundle_dir)
+
+        log.info(f"Bundling images to directory {bundle_dir}")
+        try:
+            # Download bundle to temporary directory - currently that directory
+            # must be relative to the work directory.
+            logins = []
+            if bundle_props.get("registry") and bundle_props.get("username"):
+                logins = [(bundle_props.get("registry"),
+                           bundle_props.get("username"),
+                           bundle_props.get("password", ""))]
+            elif bundle_props.get("username"):
+                logins = [(bundle_props.get("username"),
+                           bundle_props.get("password", ""))]
+
+            RegistryOperations.set_logins(logins)
+
+            # CA Certificate of registry
+            if bundle_props.get("registry") and bundle_props.get("ca-certificate"):
+                cacerts = [[bundle_props.get("registry"),
+                            bundle_props.get("ca-certificate")]]
+                RegistryOperations.set_cacerts(cacerts)
+
+            # we download the bundle and leave it there for the next steps
+            download_params = {
+                "output_dir": bundle_dir,
+                "compose_file": bundle_props["compose-file"],
+                "host_workdir": common.get_host_workdir()[0],
+                "use_host_docker": False,
+                "output_filename": common.DOCKER_BUNDLE_FILENAME,
+                "keep_double_dollar_sign": bundle_props.get("keep-double-dollar-sign", False),
+                "platform": platform,
+                "compress": False
+            }
+            download_containers_by_compose_file(**download_params)
+
+        finally:
+            log.debug(f"Completed, bundled to {bundle_dir}")
 
 
 def handle_provisioning(output_dir, prov_props):
